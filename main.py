@@ -3,12 +3,6 @@ import time
 import sys
 from collections import defaultdict
  
-reddit = praw.Reddit(client_id='...',
-                     client_secret='...',
-                     password='...',
-                     user_agent='...',
-                     username='...')
- 
 def loadRecentSubs(filename):
     recent = defaultdict(int)
     with open(filename, 'r') as f:
@@ -39,7 +33,7 @@ def saveSubreddits(subreddits, filename):
 def subName(sub):
     return sub.display_name.lower()
  
-def loadSubscriptions():
+def loadSubscriptions(reddit):
     print('Loading subscriptions...')
     subscriptions = set(subName(s) for s in reddit.user.subreddits(limit=10000))
     addToRecent(subscriptions - set(loadRecentSubs('recent.txt').keys()))
@@ -57,7 +51,7 @@ def dropFromRecent(sub_names):
         recent.pop(sub_name, None)
     saveRecentSubs(recent, 'recent.txt')
  
-def trimSubs():
+def trimSubs(reddit):
     sub_names = set()
     for sub_name, timestamp in loadRecentSubs('recent.txt').items():
         if timestamp + 60 * 60 < time.time():
@@ -81,8 +75,8 @@ def loadBlacklist(subscriptions):
     dropFromRecent(blacklist)
     return blacklist
  
-def tick():
-    subscriptions = loadSubscriptions()
+def tick(reddit):
+    subscriptions = loadSubscriptions(reddit)
     blacklist = loadBlacklist(subscriptions)
  
     to_update = []
@@ -111,15 +105,13 @@ def tick():
         to_subscribe[i].subscribe(to_subscribe[i + 1:i + 50])
  
     addToRecent(to_update)
-    trimSubs()
+    trimSubs(reddit)
  
-def main():
+def main(reddit):
     while True:
         try:
-            tick()
+            tick(reddit)
         except:
             print('Ran into an error: %s' % sys.exc_info()[0])
         print('Sleeping...')
         time.sleep(60)
- 
-main()

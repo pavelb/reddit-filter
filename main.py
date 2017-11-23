@@ -84,7 +84,7 @@ def tick(reddit):
     for submission in reddit.subreddit('all').hot(limit=1000):
         sub_name = subName(submission.subreddit)
         if sub_name in subscriptions:
-            print('Allowing  r/%-30s %s' % (sub_name, submission.title[:100]))
+            // print('Allowing  r/%-30s %s' % (sub_name, submission.title[:100]))
             to_update.append(sub_name)
         elif sub_name in blacklist:
             print('Hiding    r/%-30s %s' % (sub_name, submission.title[:100]))

@@ -1,10 +1,9 @@
 import praw
 import time
 import sys
-from collections import defaultdict
 
 def loadRecentSubs(filename):
-    recent = defaultdict(int)
+    recent = {}
     with open(filename, 'r') as f:
         for line in f.readlines():
             line = line.strip()

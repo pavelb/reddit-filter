@@ -12,7 +12,7 @@ def loadRecentSubs(filename):
                 recent[sub_name] = int(timestamp)
     return recent
 
-def saveRecentSubs(recent, filename):
+def saveRecentSubs(recent, filename='recent.txt'):
     with open(filename, 'w') as f:
         for sub_name, timestamp in sorted(recent.items()):
             f.write('%s %d\n' % (sub_name, timestamp))
@@ -29,51 +29,54 @@ def saveSubreddits(subreddits, filename):
 def subName(sub):
     return sub.display_name.lower()
 
-def loadSubscriptions(reddit):
+def loadSubscriptions(reddit, recent_file):
     print('Loading subscriptions...')
     subscriptions = set(subName(s) for s in reddit.user.subreddits(limit=10000))
-    addToRecent(subscriptions - set(loadRecentSubs('recent.txt').keys()))
+    addToRecent(subscriptions - set(loadRecentSubs(recent_file).keys()))
     return subscriptions
 
-def addToRecent(sub_names):
-    recent = loadRecentSubs('recent.txt')
+def addToRecent(sub_names, recent_file):
+    recent = loadRecentSubs(recent_file)
     for sub_name in sub_names:
         recent[sub_name] = int(time.time())
-    saveRecentSubs(recent, 'recent.txt')
+    saveRecentSubs(recent, recent_file)
 
-def dropFromRecent(sub_names):
-    recent = loadRecentSubs('recent.txt')
+def dropFromRecent(sub_names, recent_file):
+    recent = loadRecentSubs(recent_file)
     for sub_name in sub_names:
         recent.pop(sub_name, None)
-    saveRecentSubs(recent, 'recent.txt')
+    saveRecentSubs(recent, recent_file)
 
-def trimSubs(reddit):
+def batch(operation, items, size=50):
+    items = list(items)
+    for i in range(0, len(it), size):
+        print('Sending batched %s request %d' % (operation, 1 + i // size))
+        getattr(items[i], operation)(items[i + 1:i + size])
+
+def trimSubs(reddit, recent_file):
     sub_names = set()
-    for sub_name, timestamp in loadRecentSubs('recent.txt').items():
+    for sub_name, timestamp in loadRecentSubs(recent_file).items():
         if timestamp + 60 * 60 < time.time():
             sub_names.add(sub_name)
     if not sub_names:
         return
     print('Trimming  %s' % ', '.join('r/' + sub_name for sub_name in sub_names))
-    dropFromRecent(sub_names)
-    subs = [reddit.subreddit(sub_name) for sub_name in sub_names]
-    for i in range(0, len(subs), 50):
-        print('Sending batched unsubscribe request %d' % (1 + i // 50))
-        subs[i].unsubscribe(subs[i + 1:i + 50])
+    dropFromRecent(sub_names, recent_file)
+    batch('unsubscribe', reddit.subreddit(sub_name) for sub_name in sub_names)
 
-def loadBlacklist(subscriptions):
-    blacklist = loadSubreddits('unsub.txt') - subscriptions
-    to_blacklist = set(loadRecentSubs('recent.txt').keys()) - subscriptions
+def loadBlacklist(blacklist_file, recent_file, subscriptions):
+    blacklist = loadSubreddits(blacklist_file) - subscriptions
+    to_blacklist = set(loadRecentSubs(recent_file).keys()) - subscriptions
     for sub_name in to_blacklist:
         print('Blacklist r/%s' % sub_name)
     blacklist |= to_blacklist
-    saveSubreddits(blacklist, 'unsub.txt')
-    dropFromRecent(blacklist)
+    saveSubreddits(blacklist, blacklist_file)
+    dropFromRecent(blacklist, recent_file)
     return blacklist
 
-def tick(reddit):
-    subscriptions = loadSubscriptions(reddit)
-    blacklist = loadBlacklist(subscriptions)
+def tick(reddit, recent_file, blacklist_file):
+    subscriptions = loadSubscriptions(reddit, recent_file)
+    blacklist = loadBlacklist(blacklist_file, recent_file, subscriptions)
 
     to_update = []
     to_hide = []
@@ -93,20 +96,15 @@ def tick(reddit):
             to_update.append(sub_name)
             to_subscribe.append(submission.subreddit)
 
-    for i in range(0, len(to_hide), 50):
-        print('Sending batched hide request %d' % (1 + i // 50))
-        to_hide[i].hide(to_hide[i + 1:i + 50])
-    for i in range(0, len(to_subscribe), 50):
-        print('Sending batched subscribe request %d' % (1 + i // 50))
-        to_subscribe[i].subscribe(to_subscribe[i + 1:i + 50])
-
-    addToRecent(to_update)
+    batch('hide', to_hide)
+    batch('subscribe', to_subscribe)
+    addToRecent(to_update, recent_file)
     trimSubs(reddit)
 
-def main(reddit):
+def main(reddit, recent_file='recent.txt', blacklist_file='unsub.txt'):
     while True:
         try:
-            tick(reddit)
+            tick(reddit, recent_file, blacklist_file)
         except:
             print('Ran into an error: %s' % sys.exc_info()[0])
         print('Sleeping...')

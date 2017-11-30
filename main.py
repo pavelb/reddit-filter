@@ -12,7 +12,7 @@ def loadRecentSubs(filename):
                 recent[sub_name] = int(timestamp)
     return recent
 
-def saveRecentSubs(recent, filename='recent.txt'):
+def saveRecentSubs(recent, filename):
     with open(filename, 'w') as f:
         for sub_name, timestamp in sorted(recent.items()):
             f.write('%s %d\n' % (sub_name, timestamp))

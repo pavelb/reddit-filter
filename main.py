@@ -2,29 +2,31 @@ import praw
 import time
 import sys
 
-def loadRecentSubs(filename):
-    recent = {}
+def saveStrings(it, filename):
+    with open(filename, 'w') as f:
+        for item in it:
+            f.write('%s\n' % item)
+
+def loadStrings(filename):
     with open(filename, 'r') as f:
         for line in f.readlines():
-            line = line.strip()
-            if line:
-                sub_name, timestamp = line.split(' ')
-                recent[sub_name] = int(timestamp)
-    return recent
+            yield line.rstrip('\n')
 
 def saveRecentSubs(recent, filename):
-    with open(filename, 'w') as f:
-        for sub_name, timestamp in sorted(recent.items()):
-            f.write('%s %d\n' % (sub_name, timestamp))
+    saveStrings('%s %d' % item for item in sorted(recent.items())
 
-def loadSubreddits(filename):
-    with open(filename, 'r') as f:
-        return set(line.strip() for line in f.readlines())
+def loadRecentSubs(filename):
+    recent = {}
+    for line in loadStrings(filename):
+        sub_name, timestamp = line.split(' ')
+        recent[sub_name] = int(timestamp)
+    return recent
 
 def saveSubreddits(subreddits, filename):
-    with open(filename, 'w') as f:
-        for sub in sorted(list(subreddits)):
-            f.write('%s\n' % sub)
+    saveList(sorted(subreddits), filename)
+
+def loadSubreddits(filename):
+    return set(loadStrings(filename))
 
 def subName(sub):
     return sub.display_name.lower()
@@ -64,7 +66,7 @@ def trimSubs(reddit, recent_file):
     dropFromRecent(sub_names, recent_file)
     batch('unsubscribe', reddit.subreddit(sub_name) for sub_name in sub_names)
 
-def loadBlacklist(blacklist_file, recent_file, subscriptions):
+def updateBlacklist(blacklist_file, recent_file, subscriptions):
     blacklist = loadSubreddits(blacklist_file) - subscriptions
     to_blacklist = set(loadRecentSubs(recent_file).keys()) - subscriptions
     for sub_name in to_blacklist:
@@ -76,7 +78,7 @@ def loadBlacklist(blacklist_file, recent_file, subscriptions):
 
 def tick(reddit, recent_file, blacklist_file):
     subscriptions = loadSubscriptions(reddit, recent_file)
-    blacklist = loadBlacklist(blacklist_file, recent_file, subscriptions)
+    blacklist = updateBlacklist(blacklist_file, recent_file, subscriptions)
 
     to_update = []
     to_hide = []
